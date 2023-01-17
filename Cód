@@ -1,0 +1,71 @@
+#install.packages("lubridate")
+#library(tidyverse)
+#library(lubridate)
+
+basedf<- read_csv2(file = "Planilha12003a2022.csv")%>% data.frame()
+
+class(basedf)
+
+class(basedf$DATA.PGTO)
+class(basedf$VALOR)
+
+basedf$DATA.PGTO = as.Date(basedf$DATA.PGTO, format = "%d/%m/%Y")
+
+#basedf$DATA.PGTO = dmy(basedf$DATA.PGTO)
+
+basedf = basedf %>% 
+  filter(DATA.PGTO >= as.Date("01/01/2019", format = "%d/%m/%Y"))
+
+basedf$VALOR = gsub(",", ".", basedf$VALOR)
+
+basedf = basedf %>% 
+  mutate(VALOR = as.double(VALOR))
+
+
+basedf2 = basedf %>%
+  select(data = DATA.PGTO, cpf = CPF.SERVIDOR, cnpj = CPF.CNPJ.FORNECEDOR,
+        estabelecimento = NOME.FORNECEDOR, valor = VALOR, 
+        tipo_despesa = SUBELEMENTO.DE.DESPESA)
+
+
+basedf2 = basedf2 %>%
+  arrange(desc(valor))
+
+
+basedf2%>%
+  filter(cnpj == "07363122000191") %>%
+  select(data, valor) %>%
+  arrange(desc(data)) 
+
+
+soma_local = basedf2 %>%
+  group_by(estabelecimento)%>%
+  summarise(valor_total = sum(valor)) %>%
+  arrange(desc(valor_total))
+
+#soma_local2 = basedf2 %>%
+#  group_by(cnpj)%>%
+#  summarise(valor_total = sum(valor)) %>%
+#  arrange(desc(valor_total))
+ 
+
+soma_data = basedf2 %>%
+  group_by(data)%>%
+  summarise(valor_dia = sum(valor)) %>%
+  arrange(desc(valor_dia))
+
+
+qtd_operacao = basedf2 %>% count(estabelecimento) %>%
+  arrange(desc(n))
+
+#gráficos#
+
+soma_data %>%
+  ggplot(aes(x = data, y = valor_dia))+
+  geom_smooth()
+
+soma_local %>% 
+  head() %>%
+  ggplot(aes(x = estabelecimento, y = valor_total))+
+  geom_bar()
+  
