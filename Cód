@@ -1,71 +1,107 @@
-#install.packages("lubridate")
-#library(tidyverse)
-#library(lubridate)
+#Linhas de código que começam com "#" não são reconhecidas pelo R
+#Elas funcionam como comentários
 
-basedf<- read_csv2(file = "Planilha12003a2022.csv")%>% data.frame()
+#Nas próximas linhas instalamos e carregamos os pacotes necessários
+install.packages("tidyverse")
+install.packages("lubridate")
+library(tidyverse)
+library(lubridate)
 
+#Aqui extraímos a planilha csv e transformamos-a em um data frame, sem as 2 últimas linhas
+basedf <- read_csv2(file = "Planilha12003a2022.csv") %>% 
+  data.frame() %>%
+  head(-2)
+
+#Testamos a classe dos objetos
 class(basedf)
-
 class(basedf$DATA.PGTO)
 class(basedf$VALOR)
 
-basedf$DATA.PGTO = as.Date(basedf$DATA.PGTO, format = "%d/%m/%Y")
+#Nesta "#" está apenas outra forma de converter a coluna com as datas para o formato correto
+#basedf$DATA.PGTO = as.Date(basedf$DATA.PGTO, format = "%d/%m/%Y")
 
-#basedf$DATA.PGTO = dmy(basedf$DATA.PGTO)
+#Convertemos a data usando o Lubridate
+basedf$DATA.PGTO = dmy(basedf$DATA.PGTO)
 
-basedf = basedf %>% 
-  filter(DATA.PGTO >= as.Date("01/01/2019", format = "%d/%m/%Y"))
+#Substituímos, respectivamente, ponto por nada, vírgula por ponto e "R$ " por nada
+basedf$VALOR = gsub("\\.", "", basedf$VALOR)
 
 basedf$VALOR = gsub(",", ".", basedf$VALOR)
 
+basedf$VALOR = gsub("R\\$ ", "", basedf$VALOR)
+
+#Transformamos caracter em número
 basedf = basedf %>% 
   mutate(VALOR = as.double(VALOR))
 
+#Testamos novamente a classe dos objetos
+class(basedf$DATA.PGTO)
+class(basedf$VALOR)
 
-basedf2 = basedf %>%
+#Criamos um novo data frame, apenas com os valores de 2019 para frente
+basedf2 = basedf %>% 
+  filter(DATA.PGTO >= as.Date("01/01/2019", format = "%d/%m/%Y"))
+
+#Renomeamos as colunas para ficar mais fácil de trabalhar, e deixamos de selecionar 2 colunas que não são necessárias
+basedf2 = basedf2 %>%
   select(data = DATA.PGTO, cpf = CPF.SERVIDOR, cnpj = CPF.CNPJ.FORNECEDOR,
         estabelecimento = NOME.FORNECEDOR, valor = VALOR, 
         tipo_despesa = SUBELEMENTO.DE.DESPESA)
 
-
+#Ordenamos pelo valor, de forma descendente
 basedf2 = basedf2 %>%
   arrange(desc(valor))
 
-
+#Printamos no console todas as operações realizadas com o cnpj indicado
 basedf2%>%
   filter(cnpj == "07363122000191") %>%
   select(data, valor) %>%
   arrange(desc(data)) 
 
-
+#Criamos um novo objeto com a soma do valor total gastado no respectivo estabelecimento
 soma_local = basedf2 %>%
   group_by(estabelecimento)%>%
   summarise(valor_total = sum(valor)) %>%
   arrange(desc(valor_total))
 
-#soma_local2 = basedf2 %>%
-#  group_by(cnpj)%>%
-#  summarise(valor_total = sum(valor)) %>%
-#  arrange(desc(valor_total))
- 
+#Criamos um novo objeto com a soma do valor total gastado no respectivo cnpj, só para conferir se os valores stão batendo
+soma_local2 = basedf2 %>%
+  group_by(cnpj)%>%
+  summarise(valor_total = sum(valor)) %>%
+  arrange(desc(valor_total))
 
+#Renoamos este objeto para poder printá-lo no gráfico
+soma_local[2,1]="COMPANHIA BRASILEIRA DE DISTRIBUICAO"
+
+#Criamos um novo objeto com a soma do valor total gastado no respectivo dia
 soma_data = basedf2 %>%
   group_by(data)%>%
   summarise(valor_dia = sum(valor)) %>%
   arrange(desc(valor_dia))
 
-
+#Criamos um novo objeto com o número de operações realizadas com o respectivo estabelecimento
 qtd_operacao = basedf2 %>% count(estabelecimento) %>%
   arrange(desc(n))
 
-#gráficos#
-
+#Printamos o gráfico com a série histórica de operações
 soma_data %>%
+  drop_na(valor_dia)%>%
+  ggplot(aes(x = data, y = valor_dia))+
+  geom_line()
+
+#Printamos o gráfico com outra função
+soma_data %>%
+  drop_na(valor_dia)%>%
   ggplot(aes(x = data, y = valor_dia))+
   geom_smooth()
 
+#Printamos o gráfico com os 6 estabelecimentos que receberam mais dinheiro
 soma_local %>% 
   head() %>%
-  ggplot(aes(x = estabelecimento, y = valor_total))+
-  geom_bar()
+  ggplot(aes(x = valor_total, y = estabelecimento))+
+  geom_point()+
+  labs(title = "Estabelecimentos que mais receberam",
+       x = "Valor (R$)",
+       y = NULL)+
+  theme_bw()
   
